@@ -1,14 +1,14 @@
 import { initializeApp } from 'firebase/app';
 import { getAuth, GoogleAuthProvider, signInWithPopup, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, onAuthStateChanged } from 'firebase/auth';
 
-// Replace these with your Firebase config from the Firebase Console
 const firebaseConfig = {
-  apiKey: "YOUR_API_KEY",
-  authDomain: "YOUR_PROJECT.firebaseapp.com",
-  projectId: "YOUR_PROJECT_ID",
-  storageBucket: "YOUR_PROJECT.appspot.com",
-  messagingSenderId: "YOUR_SENDER_ID",
-  appId: "YOUR_APP_ID"
+  apiKey: "AIzaSyBtYrWQDgpV0BwqOGlD0uYDUF2rOWDsjFg",
+  authDomain: "dtrexasai-7c16c.firebaseapp.com",
+  projectId: "dtrexasai-7c16c",
+  storageBucket: "dtrexasai-7c16c.firebasestorage.app",
+  messagingSenderId: "826750818157",
+  appId: "1:826750818157:web:034a5ee5c130ce8ff0ac64",
+  measurementId: "G-8N3EQWXBE9"
 };
 
 const app = initializeApp(firebaseConfig);
