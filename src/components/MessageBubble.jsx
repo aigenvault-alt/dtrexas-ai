@@ -3,7 +3,7 @@ import ReactMarkdown from 'react-markdown';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism';
 import remarkGfm from 'remark-gfm';
-import { Copy, Check, Pencil, RotateCcw } from 'lucide-react';
+import { Copy, Check, Pencil, RotateCcw, Download } from 'lucide-react';
 
 export default function MessageBubble({ message, onEdit, onRegenerate, isStreaming }) {
   const [copied, setCopied] = useState(false);
@@ -25,6 +25,15 @@ export default function MessageBubble({ message, onEdit, onRegenerate, isStreami
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleEditSubmit(); }
     if (e.key === 'Escape') { setEditing(false); setEditValue(message.content); }
   };
+
+  const handleDownload = async (dataUrl, index) => {
+    const a = document.createElement('a');
+    a.href = dataUrl;
+    a.download = 'generated-image-' + (index + 1) + '.png';
+    a.click();
+  };
+
+  const hasGenerated = message.generatedImages && message.generatedImages.length > 0;
 
   return (
     <div style={styles.bubble}>
@@ -52,24 +61,39 @@ export default function MessageBubble({ message, onEdit, onRegenerate, isStreami
             </div>
           ) : (
             <div style={styles.assistantContent}>
-              <ReactMarkdown remarkPlugins={[remarkGfm]} components={{
-                code({ node, inline, className, children, ...props }) {
-                  const match = /language-(\w+)/.exec(className || '');
-                  const code = String(children).replace(/\n$/, '');
-                  if (!inline && match) return <CodeBlock language={match[1]} code={code} />;
-                  return <code className={className} {...props}>{children}</code>;
-                },
-                a({ children, href, ...props }) {
-                  return <a href={href} target="_blank" rel="noopener noreferrer" {...props}>{children}</a>;
-                },
-              }}>{message.content}</ReactMarkdown>
+              {/* Generated images */}
+              {hasGenerated && (
+                <div style={styles.generatedImages}>
+                  {message.generatedImages.map((img, i) => (
+                    <div key={i} style={styles.genImgWrapper}>
+                      <img src={img} alt={'Generated ' + (i + 1)} style={styles.genImg} />
+                      <button style={styles.downloadBtn} onClick={() => handleDownload(img, i)} title="Download">
+                        <Download size={14} />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+              {message.content && (
+                <ReactMarkdown remarkPlugins={[remarkGfm]} components={{
+                  code({ node, inline, className, children, ...props }) {
+                    const match = /language-(\w+)/.exec(className || '');
+                    const code = String(children).replace(/\n$/, '');
+                    if (!inline && match) return <CodeBlock language={match[1]} code={code} />;
+                    return <code className={className} {...props}>{children}</code>;
+                  },
+                  a({ children, href, ...props }) {
+                    return <a href={href} target="_blank" rel="noopener noreferrer" {...props}>{children}</a>;
+                  },
+                }}>{message.content}</ReactMarkdown>
+              )}
               {isStreaming && <span style={styles.cursor}>▊</span>}
             </div>
           )}
           {isAssistant && !isStreaming && (
             <div style={styles.actions}>
               <button style={styles.actionBtn} onClick={handleCopy} title="Copy">{copied ? <Check size={14} /> : <Copy size={14} />}</button>
-              {onRegenerate && <button style={styles.actionBtn} onClick={() => onRegenerate()} title="Regenerate"><RotateCcw size={14} /></button>}
+              {!hasGenerated && onRegenerate && <button style={styles.actionBtn} onClick={() => onRegenerate()} title="Regenerate"><RotateCcw size={14} /></button>}
             </div>
           )}
           {isUser && (
@@ -110,6 +134,10 @@ const styles = {
   attachedImg: { maxWidth: 200, maxHeight: 200, borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)', objectFit: 'contain' },
   userText: { margin: 0, fontSize: 14, lineHeight: '22px', color: 'var(--text-primary)', whiteSpace: 'pre-wrap', wordBreak: 'break-word' },
   assistantContent: { fontSize: 14, lineHeight: '24px', color: 'var(--text-primary)' },
+  generatedImages: { display: 'flex', flexDirection: 'column', gap: 12, marginBottom: 12 },
+  genImgWrapper: { position: 'relative', display: 'inline-block', borderRadius: 'var(--radius-sm)', overflow: 'hidden', border: '1px solid var(--border)', maxWidth: 512 },
+  genImg: { width: '100%', height: 'auto', display: 'block' },
+  downloadBtn: { position: 'absolute', bottom: 8, right: 8, padding: 6, borderRadius: 'var(--radius-sm)', background: 'rgba(0,0,0,0.7)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', border: 'none', cursor: 'pointer' },
   cursor: { color: 'var(--accent)', animation: 'pulse 1s infinite' },
   actions: { display: 'flex', gap: 4, marginTop: 8 },
   actionBtn: { padding: 6, borderRadius: 4, color: 'var(--text-muted)', display: 'flex', alignItems: 'center', justifyContent: 'center', border: 'none', background: 'none', cursor: 'pointer' },
