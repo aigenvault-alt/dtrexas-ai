@@ -15,16 +15,13 @@ const upload = multer({ storage, limits: { fileSize: 10 * 1024 * 1024 } });
 
 const AVAILABLE_MODELS = [
   { id: 'llama-3.3-70b-versatile', name: 'Llama 3.3 70B', provider: 'Meta' },
-  { id: 'llama-3.2-90b-vision-preview', name: 'Llama 3.2 90B Vision', provider: 'Meta' },
-  { id: 'llama-3.2-11b-vision-preview', name: 'Llama 3.2 11B Vision', provider: 'Meta' },
+  { id: 'qwen/qwen3.6-27b', name: 'Qwen 3.6 27B (Vision)', provider: 'Alibaba' },
   { id: 'llama-3.1-8b-instant', name: 'Llama 3.1 8B', provider: 'Meta' },
-  { id: 'qwen/qwen3.6-27b', name: 'Qwen 3.6 27B', provider: 'Alibaba' },
   { id: 'allam-2-7b', name: 'Allam 2 7B', provider: 'SDAIA' },
 ];
 
 const GROQ_API_BASE = 'https://api.groq.com/openai/v1';
 
-// Image upload endpoint - returns base64 data URL
 router.post('/upload-image', upload.single('image'), async (req, res) => {
   if (!req.file) return res.status(400).json({ error: 'No image uploaded.' });
   try {
@@ -54,13 +51,14 @@ router.post('/stream', async (req, res) => {
   let groqMessages = [...messages];
 
   if (images && images.length > 0) {
-    selectedModel = 'llama-3.2-11b-vision-preview';
+    selectedModel = 'qwen/qwen3.6-27b';
     const lastUserMsgIdx = groqMessages.map((m, i) => (m.role === 'user' ? i : -1)).filter(i => i >= 0).pop();
     if (lastUserMsgIdx >= 0) {
-      const content = [{ type: 'text', text: groqMessages[lastUserMsgIdx].content || 'Describe this image.' }];
+      const content = [];
       for (const img of images) {
-        content.push({ type: 'image_url', image_url: { url: img, detail: 'auto' } });
+        content.push({ type: 'image_url', image_url: { url: img } });
       }
+      content.push({ type: 'text', text: groqMessages[lastUserMsgIdx].content || 'Describe this image in detail.' });
       groqMessages = groqMessages.map((m, i) =>
         i === lastUserMsgIdx ? { role: m.role, content } : m
       );
@@ -68,7 +66,7 @@ router.post('/stream', async (req, res) => {
   }
 
   const selectedTemp = temperature ?? parseFloat(process.env.TEMPERATURE || '0.7');
-  const selectedMaxTokens = max_tokens ?? parseInt(process.env.MAX_TOKENS || '8192', 10);
+  const selectedMaxTokens = max_tokens ?? parseInt(process.env.MAX_TOKENS || '16384', 10);
 
   try {
     const response = await fetch(`${GROQ_API_BASE}/chat/completions`, {
