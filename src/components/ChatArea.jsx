@@ -21,12 +21,10 @@ export default function ChatArea({ conversation }) {
     if (!conversation || isLoading) return;
     const model = settings.model, temperature = settings.temperature, maxTokens = settings.maxTokens;
 
-    // Add user message with optional images
     const userMsg = { id: 'msg_' + Date.now() + '_u', role: 'user', content: content || '', timestamp: Date.now() };
     if (images && images.length > 0) userMsg.images = images;
     addMessage(conversation.id, userMsg);
 
-    // Add placeholder assistant message
     addMessage(conversation.id, { id: 'msg_' + Date.now() + '_a', role: 'assistant', content: '', timestamp: Date.now() });
     setLoading(true); setStreamingContent('');
 
@@ -99,6 +97,56 @@ export default function ChatArea({ conversation }) {
     }
   }, [conversation, isLoading, settings, addMessage, setLoading, setAbortController, setStreamingContent, appendToLastAssistant]);
 
+  const handleGenerateImage = useCallback(async (prompt) => {
+    if (!conversation || isLoading) return;
+
+    // Add user message showing the prompt
+    addMessage(conversation.id, {
+      id: 'msg_' + Date.now() + '_u',
+      role: 'user',
+      content: 'Generate image: ' + prompt,
+      timestamp: Date.now()
+    });
+
+    setLoading(true);
+    try {
+      const res = await fetch('/api/image/generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ prompt })
+      });
+
+      const data = await res.json();
+
+      if (data.success && data.images.length > 0) {
+        // Add assistant message with the generated image
+        addMessage(conversation.id, {
+          id: 'msg_' + Date.now() + '_a',
+          role: 'assistant',
+          content: data.text || 'Here is your generated image:',
+          generatedImages: data.images.map(img => img.dataUrl),
+          timestamp: Date.now()
+        });
+      } else {
+        addMessage(conversation.id, {
+          id: 'msg_' + Date.now() + '_a',
+          role: 'assistant',
+          content: data.error || 'Failed to generate image.',
+          timestamp: Date.now()
+        });
+      }
+    } catch (err) {
+      addMessage(conversation.id, {
+        id: 'msg_' + Date.now() + '_a',
+        role: 'assistant',
+        content: 'Error: ' + err.message,
+        timestamp: Date.now()
+      });
+    } finally {
+      setLoading(false);
+    }
+  }, [conversation, isLoading, addMessage, setLoading]);
+
   const handleRegenerate = useCallback(async () => {
     if (!conversation) return;
     const msgs = conversation.messages;
@@ -107,7 +155,6 @@ export default function ChatArea({ conversation }) {
     if (lastUserIdx === -1) return;
     const actualIdx = msgs.length - 1 - lastUserIdx;
     const userMsg = msgs[actualIdx];
-    // Trim messages to that user message
     useChatStore.setState(state => {
       const chats = state.conversations.map(c =>
         c.id !== conversation.id ? c : { ...c, messages: c.messages.slice(0, actualIdx + 1) }
@@ -144,7 +191,7 @@ export default function ChatArea({ conversation }) {
         </div>
       )}
       <MessageComposer chatId={conversation?.id} onSubmit={sendMessage}
-        isStreaming={isLoading} onStop={stopGenerating} />
+        isStreaming={isLoading} onStop={stopGenerating} onGenerateImage={handleGenerateImage} />
     </div>
   );
 }
