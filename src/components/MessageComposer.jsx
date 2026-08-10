@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Send, Square, ImagePlus, X } from 'lucide-react';
+import { Send, Square, ImagePlus, Wand2, X } from 'lucide-react';
 import { useChatStore } from '../store.js';
 
 function compressImage(file) {
@@ -33,12 +33,14 @@ function compressImage(file) {
   });
 }
 
-export default function MessageComposer({ chatId, onSubmit, isStreaming, onStop }) {
+export default function MessageComposer({ chatId, onSubmit, isStreaming, onStop, onGenerateImage }) {
   const [input, setInput] = useState('');
   const [attachedImages, setAttachedImages] = useState([]);
   const [uploadingImage, setUploadingImage] = useState(false);
+  const [showImageGen, setShowImageGen] = useState(false);
   const textareaRef = useRef(null);
   const fileInputRef = useRef(null);
+  const genInputRef = useRef(null);
   const settings = useChatStore(s => s.settings);
 
   useEffect(() => {
@@ -78,8 +80,33 @@ export default function MessageComposer({ chatId, onSubmit, isStreaming, onStop 
     if (imageFiles.length > 0) { e.preventDefault(); processImages(imageFiles); }
   };
 
+  const handleGenSubmit = () => {
+    if (!onGenerateImage || !genInputRef.current) return;
+    const prompt = genInputRef.current.value.trim();
+    if (!prompt || isStreaming) return;
+    onGenerateImage(prompt);
+    genInputRef.current.value = '';
+    setShowImageGen(false);
+  };
+
+  const handleGenKeyDown = (e) => {
+    if (e.key === 'Enter') { e.preventDefault(); handleGenSubmit(); }
+    if (e.key === 'Escape') setShowImageGen(false);
+  };
+
   return (
     <div style={s.wrapper}>
+      {/* Image Gen bar */}
+      {showImageGen && (
+        <div style={s.genBar}>
+          <Wand2 size={16} style={{ color: 'var(--accent)', flexShrink: 0 }} />
+          <input ref={genInputRef} style={s.genInput} placeholder="Describe an image to generate..."
+            onKeyDown={handleGenKeyDown} autoFocus />
+          <button style={s.genBtn} onClick={handleGenSubmit}>Generate</button>
+          <button style={s.genCancel} onClick={() => setShowImageGen(false)}><X size={14} /></button>
+        </div>
+      )}
+      {/* Image previews */}
       {attachedImages.length > 0 && (
         <div style={s.imagePreviewRow}>
           {attachedImages.map((img, i) => (
@@ -97,9 +124,13 @@ export default function MessageComposer({ chatId, onSubmit, isStreaming, onStop 
           onClick={() => fileInputRef.current?.click()} disabled={isStreaming || uploadingImage} title="Attach image">
           <ImagePlus size={20} />
         </button>
+        <button style={{ ...s.iconBtn, opacity: isStreaming ? 0.5 : 1 }}
+          onClick={() => setShowImageGen(!showImageGen)} disabled={isStreaming} title="Generate image">
+          <Wand2 size={20} />
+        </button>
         <textarea ref={textareaRef} style={s.textarea}
           value={input} onChange={e => setInput(e.target.value)} onKeyDown={handleKeyDown} onPaste={handlePaste}
-          placeholder={uploadingImage ? 'Processing...' : 'Message Dtrexas AI... (paste images or click the image icon)'}
+          placeholder={uploadingImage ? 'Processing...' : 'Message Dtrexas AI...'}
           rows={1} disabled={isStreaming || uploadingImage} />
         {isStreaming ? (
           <button style={s.stopBtn} onClick={onStop}><Square size={16} fill="currentColor" /></button>
@@ -112,7 +143,7 @@ export default function MessageComposer({ chatId, onSubmit, isStreaming, onStop 
       </div>
       <div style={s.footer}>
         <span style={s.modelBadge}>{settings.model}</span>
-        <span style={s.hint}>Enter to send · Shift+Enter for new line · Paste images</span>
+        <span style={s.hint}>Enter to send · Paste for images · 🪄 for AI gen</span>
       </div>
     </div>
   );
@@ -120,6 +151,24 @@ export default function MessageComposer({ chatId, onSubmit, isStreaming, onStop 
 
 const s = {
   wrapper: { padding: '0 16px 12px' },
+  genBar: {
+    display: 'flex', alignItems: 'center', gap: 8,
+    background: 'var(--bg-input)', borderRadius: 'var(--radius-md)',
+    border: '1px solid var(--accent)', padding: '8px 12px', marginBottom: 8,
+  },
+  genInput: {
+    flex: 1, background: 'none', border: 'none', outline: 'none',
+    fontSize: 13, color: 'var(--text-primary)', fontFamily: 'inherit',
+  },
+  genBtn: {
+    padding: '6px 14px', borderRadius: 'var(--radius-sm)',
+    background: 'var(--accent)', color: '#fff', fontSize: 12, fontWeight: 600,
+    border: 'none', cursor: 'pointer',
+  },
+  genCancel: {
+    padding: 4, borderRadius: 4, color: 'var(--text-muted)',
+    background: 'none', border: 'none', cursor: 'pointer', display: 'flex',
+  },
   imagePreviewRow: { display: 'flex', gap: 8, padding: '8px 0', flexWrap: 'wrap' },
   imageThumb: { position: 'relative', width: 64, height: 64, borderRadius: 'var(--radius-sm)', overflow: 'hidden', border: '1px solid var(--border)', background: 'var(--bg-input)' },
   thumbImg: { width: '100%', height: '100%', objectFit: 'cover' },
