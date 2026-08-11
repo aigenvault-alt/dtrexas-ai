@@ -2,54 +2,40 @@ import { Router } from 'express';
 
 const router = Router();
 
-const GEMINI_API_BASE = 'https://generativelanguage.googleapis.com/v1beta';
-
-const IMAGE_MODELS = [
-  'gemini-2.5-pro-exp-03-25',
-  'gemini-2.0-flash-exp',
-  'gemini-2.5-pro-preview-05-06',
-];
-
-async function tryGenerateImage(apiKey, prompt) {
-  for (const model of IMAGE_MODELS) {
-    try {
-      const url = `${GEMINI_API_BASE}/models/${model}:generateContent?key=${apiKey}`;
-      const body = {
-        contents: [{ parts: [{ text: prompt }] }],
-        generationConfig: { responseModalities: ['Text', 'Image'] }
-      };
-      console.log(`Trying Gemini model: ${model}`);
-      const response = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
-      if (!response.ok) { const errText = await response.text(); console.error(`Gemini ${model} failed [${response.status}]:`, errText.substring(0, 200)); continue; }
-      const data = await response.json();
-      console.log(`Gemini ${model} response:`, JSON.stringify(data).substring(0, 300));
-      const images = [];
-      for (const candidate of (data.candidates || [])) {
-        for (const part of (candidate.content?.parts || [])) {
-          if (part.inlineData) images.push({ dataUrl: `data:${part.inlineData.mimeType};base64,${part.inlineData.data}`, mimeType: part.inlineData.mimeType });
-        }
-      }
-      if (images.length > 0) {
-        let text = '';
-        for (const candidate of (data.candidates || [])) for (const part of (candidate.content?.parts || [])) if (part.text) text += part.text;
-        return { success: true, images, text: text || null, model };
-      }
-      console.log(`Gemini ${model}: no images, trying next...`);
-    } catch (err) { console.error(`Gemini ${model} exception:`, err.message); }
-  }
-  return null;
-}
-
+// Free image generation via Pollinations.ai - no API key, no billing needed
 router.post('/generate', async (req, res) => {
-  const apiKey = process.env.GEMINI_API_KEY;
-  if (!apiKey) return res.status(500).json({ error: 'Gemini API key not configured.' });
   const { prompt } = req.body;
   if (!prompt) return res.status(400).json({ error: 'Prompt is required.' });
+
   try {
-    const result = await tryGenerateImage(apiKey, prompt);
-    if (result) return res.json(result);
-    res.status(502).json({ error: 'Image generation unavailable. Your Gemini API key may need billing enabled at https://ai.google.dev.' });
-  } catch (err) { console.error(err); res.status(502).json({ error: 'Failed to generate image.' }); }
+    // URL-encode the prompt and fetch from Pollinations
+    const encodedPrompt = encodeURIComponent(prompt);
+    const imageUrl = `https://image.pollinations.ai/prompt/${encodedPrompt}?width=1024&height=1024&seed=${Date.now()}`;
+
+    console.log('Generating image via Pollinations:', imageUrl.substring(0, 100));
+
+    // Fetch the image as a buffer
+    const response = await fetch(imageUrl);
+    if (!response.ok) {
+      return res.status(502).json({ error: 'Image generation failed. Try a different prompt.' });
+    }
+
+    // Convert to base64 data URL
+    const buffer = await response.arrayBuffer();
+    const base64 = Buffer.from(buffer).toString('base64');
+    const contentType = response.headers.get('content-type') || 'image/jpeg';
+    const dataUrl = `data:${contentType};base64,${base64}`;
+
+    res.json({
+      success: true,
+      images: [{ dataUrl, mimeType: contentType }],
+      text: 'Here is your generated image!',
+      model: 'pollinations.ai (free)'
+    });
+  } catch (err) {
+    console.error('Image generation error:', err);
+    res.status(502).json({ error: 'Failed to generate image. Pollinations might be down, try again.' });
+  }
 });
 
 export default router;
