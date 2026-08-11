@@ -1,138 +1,152 @@
 import { Router } from 'express';
-import multer from 'multer';
-import fs from 'fs/promises';
-import path from 'path';
-import { fileURLToPath } from 'url';
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const router = Router();
 
-const uploadDir = path.join(__dirname, '..', 'uploads');
-try { await fs.mkdir(uploadDir, { recursive: true }); } catch {}
-
-const storage = multer.memoryStorage();
-const upload = multer({ storage, limits: { fileSize: 10 * 1024 * 1024 } });
-
-const AVAILABLE_MODELS = [
-  { id: 'llama-3.3-70b-versatile', name: 'Llama 3.3 70B', provider: 'Meta' },
-  { id: 'qwen/qwen3.6-27b', name: 'Qwen 3.6 27B (Vision)', provider: 'Alibaba' },
-  { id: 'llama-3.1-8b-instant', name: 'Llama 3.1 8B', provider: 'Meta' },
-  { id: 'allam-2-7b', name: 'Allam 2 7B', provider: 'SDAIA' },
-];
-
 const GROQ_API_BASE = 'https://api.groq.com/openai/v1';
+const GEMINI_API_BASE = 'https://generativelanguage.googleapis.com/v1beta';
 
-router.post('/upload-image', upload.single('image'), async (req, res) => {
-  if (!req.file) return res.status(400).json({ error: 'No image uploaded.' });
-  try {
-    const base64 = req.file.buffer.toString('base64');
-    const mimeType = req.file.mimetype;
-    res.json({
-      success: true,
-      dataUrl: `data:${mimeType};base64,${base64}`,
-      filename: req.file.originalname,
-      size: req.file.size,
-    });
-  } catch (err) {
-    console.error('Image upload error:', err);
-    res.status(500).json({ error: 'Failed to process image.' });
+// Helper: analyze images with Gemini 1.5 Flash
+async function analyzeImages(apiKey, images, userText) {
+  const url = `${GEMINI_API_BASE}/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
+  const parts = [];
+  for (const img of images) {
+    const match = img.match(/^data:(.+?);base64,(.+)$/);
+    if (!match) continue;
+    parts.push({ inlineData: { mimeType: match[1], data: match[2] } });
   }
-});
+  parts.push({ text: userText || 'Describe this image in detail. What do you see?' });
 
-router.post('/stream', async (req, res) => {
-  const apiKey = process.env.GROQ_API_KEY;
-  if (!apiKey) return res.status(500).json({ error: 'Server misconfiguration: no API key.' });
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      contents: [{ parts }],
+      generationConfig: { temperature: 0.4, maxOutputTokens: 2048 }
+    }),
+  });
 
-  const { messages, model, temperature, max_tokens, images } = req.body;
-  if (!messages || !Array.isArray(messages) || messages.length === 0)
-    return res.status(400).json({ error: 'Messages array is required.' });
+  if (!response.ok) {
+    const err = await response.text();
+    console.error('Gemini vision error:', err.substring(0, 200));
+    throw new Error('Image analysis failed');
+  }
 
-  let selectedModel = model || process.env.DEFAULT_MODEL || 'llama-3.3-70b-versatile';
-  let groqMessages = [...messages];
-
-  if (images && images.length > 0) {
-    selectedModel = 'qwen/qwen3.6-27b';
-    const lastUserMsgIdx = groqMessages.map((m, i) => (m.role === 'user' ? i : -1)).filter(i => i >= 0).pop();
-    if (lastUserMsgIdx >= 0) {
-      const content = [];
-      for (const img of images) {
-        content.push({ type: 'image_url', image_url: { url: img } });
-      }
-      content.push({ type: 'text', text: groqMessages[lastUserMsgIdx].content || 'Describe this image in detail.' });
-      groqMessages = groqMessages.map((m, i) =>
-        i === lastUserMsgIdx ? { role: m.role, content } : m
-      );
+  const data = await response.json();
+  let text = '';
+  for (const candidate of (data.candidates || [])) {
+    for (const part of (candidate.content?.parts || [])) {
+      if (part.text) text += part.text;
     }
   }
+  return text;
+}
 
-  const selectedTemp = temperature ?? parseFloat(process.env.TEMPERATURE || '0.7');
-  const selectedMaxTokens = max_tokens ?? parseInt(process.env.MAX_TOKENS || '16384', 10);
+router.post('/stream', async (req, res) => {
+  const groqKey = process.env.GROQ_API_KEY;
+  const geminiKey = process.env.GEMINI_API_KEY;
+  if (!groqKey) return res.status(500).json({ error: 'Groq API key not configured.' });
+
+  const { messages, model, temperature, max_tokens, images } = req.body;
+  if (!messages || messages.length === 0) return res.status(400).json({ error: 'Messages are required.' });
 
   try {
+    let apiMessages = [...messages];
+
+    // If images are attached, analyze them with Gemini first
+    if (images && images.length > 0 && geminiKey) {
+      try {
+        const lastUserMsg = [...apiMessages].reverse().find(m => m.role === 'user');
+        const userText = lastUserMsg?.content || '';
+        const description = await analyzeImages(geminiKey, images, userText);
+
+        // Replace the last user message with the image description
+        apiMessages = apiMessages.map(m => {
+          if (m === lastUserMsg || (m.role === 'user' && m.content === userText)) {
+            return { ...m, content: `[User sent an image. Image description: ${description}]\n\nUser message: ${userText || '(no text)'}` };
+          }
+          return m;
+        });
+      } catch (err) {
+        console.error('Image analysis failed, proceeding without:', err.message);
+        apiMessages[apiMessages.length - 1] = {
+          role: 'user',
+          content: '[User sent an image but it could not be analyzed. Please let them know.]'
+        };
+      }
+    }
+
     const response = await fetch(`${GROQ_API_BASE}/chat/completions`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` },
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${groqKey}`,
+      },
       body: JSON.stringify({
-        model: selectedModel, messages: groqMessages,
-        temperature: selectedTemp, max_tokens: selectedMaxTokens,
-        stream: true, stream_options: { include_usage: true },
+        model: model || 'llama-3.3-70b-versatile',
+        messages: apiMessages,
+        temperature: temperature ?? 0.7,
+        max_tokens: max_tokens || 8192,
+        stream: true,
       }),
     });
 
     if (!response.ok) {
-      const errBody = await response.text().catch(() => '');
-      let errJson = {};
-      try { errJson = JSON.parse(errBody); } catch {}
-      const errMsg = errJson?.error?.message || errBody || 'Unknown API error';
-      let status = 502;
-      if (response.status === 401) status = 500;
-      else if (response.status === 429) status = 429;
-      else if (response.status === 404) status = 400;
-      return res.status(status).json({ error: `AI service error: ${errMsg}` });
+      const err = await response.json().catch(() => ({}));
+      return res.status(502).json({ error: err.error?.message || 'Groq API error' });
     }
 
     res.setHeader('Content-Type', 'text/event-stream');
     res.setHeader('Cache-Control', 'no-cache');
     res.setHeader('Connection', 'keep-alive');
-    res.setHeader('X-Accel-Buffering', 'no');
-    res.flushHeaders();
 
     const reader = response.body.getReader();
     const decoder = new TextDecoder();
     let buffer = '';
-    let aborted = false;
-
-    req.on('close', () => { aborted = true; reader.cancel().catch(() => {}); });
 
     try {
       while (true) {
         const { done, value } = await reader.read();
-        if (done || aborted) break;
+        if (done) {
+          res.write('data: [DONE]\n\n');
+          res.end();
+          break;
+        }
+
         buffer += decoder.decode(value, { stream: true });
         const lines = buffer.split('\n');
         buffer = lines.pop() || '';
+
         for (const line of lines) {
-          if (line.startsWith('data: ')) {
-            const data = line.slice(6).trim();
-            if (data === '[DONE]') { res.write(`data: [DONE]\n\n`); break; }
-            res.write(`data: ${data}\n\n`);
+          const trimmed = line.trim();
+          if (!trimmed || !trimmed.startsWith('data: ')) continue;
+          const data = trimmed.slice(6);
+          if (data === '[DONE]') {
+            res.write('data: [DONE]\n\n');
+            res.end();
+            return;
+          }
+          try {
+            JSON.parse(data);
+            res.write(`${trimmed}\n\n`);
+          } catch {
+            continue;
           }
         }
       }
-    } catch (streamErr) {
-      if (!aborted) console.error('Stream read error:', streamErr);
+    } catch (err) {
+      if (err.message?.includes('abort') || err.code === 'ERR_STREAM_PREMATURE_CLOSE') {
+        try { res.end(); } catch {}
+      } else {
+        console.error('Stream error:', err);
+        try { res.end(); } catch {}
+      }
     }
-    res.write(`data: [DONE]\n\n`);
-    res.end();
   } catch (err) {
-    console.error('Chat stream error:', err);
-    if (!res.headersSent) return res.status(502).json({ error: 'Failed to connect to AI service.' });
-    res.end();
+    console.error('Chat route error:', err);
+    if (!res.headersSent) {
+      res.status(502).json({ error: err.message || 'Chat API error' });
+    }
   }
-});
-
-router.get('/models', (_req, res) => {
-  res.json({ models: AVAILABLE_MODELS, default: process.env.DEFAULT_MODEL || 'llama-3.3-70b-versatile' });
 });
 
 export default router;
