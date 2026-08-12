@@ -1,1 +1,2 @@
-// Firebase removed - using local JWT auth instead. See App.jsx.
+// Firebase removed due to Google account suspension.
+// Using no-auth mode for now. All users access directly.

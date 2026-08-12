@@ -1,61 +1,11 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef } from 'react';
 import Sidebar from './components/Sidebar.jsx';
 import ChatArea from './components/ChatArea.jsx';
 import SettingsPanel from './components/SettingsPanel.jsx';
-import { Auth } from './components/Auth.jsx';
 import { useChatStore } from './store.js';
 import { Menu, PanelLeftClose, PanelLeft } from 'lucide-react';
 
-const API = import.meta.env.VITE_API_URL || '';
-
 export default function App() {
-  const [user, setUser] = useState(null);
-  const [authLoading, setAuthLoading] = useState(true);
-  const [authError, setAuthError] = useState('');
-
-  useEffect(() => {
-    const token = localStorage.getItem('token');
-    if (!token) { setAuthLoading(false); return; }
-    fetch(`${API}/api/auth/me`, {
-      headers: { Authorization: `Bearer ${token}` }
-    })
-      .then(r => r.ok ? r.json() : Promise.reject())
-      .then(data => setUser(data.user))
-      .catch(() => localStorage.removeItem('token'))
-      .finally(() => setAuthLoading(false));
-  }, []);
-
-  const handleLogin = async (email, password, isRegister) => {
-    setAuthError('');
-    const endpoint = isRegister ? 'register' : 'login';
-    const res = await fetch(`${API}/api/auth/${endpoint}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, password })
-    });
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.error);
-    localStorage.setItem('token', data.token);
-    setUser(data.user);
-  };
-
-  const handleLogout = () => {
-    localStorage.removeItem('token');
-    setUser(null);
-  };
-
-  if (authLoading) {
-    return <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh', background: '#0f0f0f', color: '#aaa', fontSize: 16 }}>Loading...</div>;
-  }
-
-  if (!user) {
-    return <Auth onLogin={handleLogin} error={authError} />;
-  }
-
-  return <ChatInterface user={user} onLogout={handleLogout} />;
-}
-
-function ChatInterface({ user, onLogout }) {
   const { conversations, activeId, createChat, setActiveId, sidebarOpen, toggleSidebar, settingsOpen } = useChatStore();
   const initialized = useRef(false);
 
@@ -73,15 +23,7 @@ function ChatInterface({ user, onLogout }) {
     <div style={styles.wrapper}>
       {sidebarOpen && <div style={styles.mobileOverlay} onClick={toggleSidebar} />}
       <div style={{ ...styles.sidebar, transform: sidebarOpen ? 'translateX(0)' : 'translateX(-100%)', ...(sidebarOpen ? {} : { position: 'absolute' }) }}>
-        <Sidebar
-          conversations={conversations}
-          activeId={activeId}
-          onSelect={setActiveId}
-          onNew={createChat}
-          onDelete={(id) => useChatStore.getState().deleteChat(id)}
-          onRename={(id, t) => useChatStore.getState().renameChat(id, t)}
-          onClose={toggleSidebar}
-        />
+        <Sidebar conversations={conversations} activeId={activeId} onSelect={setActiveId} onNew={createChat} onDelete={(id) => useChatStore.getState().deleteChat(id)} onRename={(id, t) => useChatStore.getState().renameChat(id, t)} onClose={toggleSidebar} />
       </div>
       <div style={styles.main}>
         <div style={styles.topBar}>
