@@ -38,7 +38,7 @@ export default function LoginPage() {
   return (
     <div style={s.wrapper}>
       <div style={s.card}>
-        <div style={s.logo}>🤖</div>
+        <img src="/logo.png" alt="Dtrexas AI" style={s.logoImg} />
         <h1 style={s.title}>Dtrexas AI</h1>
         <p style={s.subtitle}>{mode === 'login' ? 'Welcome back' : 'Create your account'}</p>
 
@@ -91,6 +91,7 @@ const s = {
     boxShadow: 'var(--shadow-lg)',
   },
   logo: { fontSize: 48, marginBottom: 12 },
+  logoImg: { width: 96, height: 96, borderRadius: '50%', objectFit: 'cover', marginBottom: 16, display: 'block', margin: '0 auto 16px' },
   title: { fontSize: 24, fontWeight: 700, marginBottom: 4, color: 'var(--text-primary)' },
   subtitle: { fontSize: 14, color: 'var(--text-secondary)', marginBottom: 24 },
   error: {
