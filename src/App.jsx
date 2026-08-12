@@ -28,7 +28,7 @@ export default function App() {
       <div style={styles.main}>
         <div style={styles.topBar}>
           <button style={styles.iconBtn} onClick={toggleSidebar} title="Toggle sidebar">{sidebarOpen ? <PanelLeftClose size={20} /> : <PanelLeft size={20} />}</button>
-          <img src="/logo.png" alt="" style={styles.topLogo} />
+          <img src="/favicon.png" alt="" style={styles.topLogo} />
           <div style={styles.topTitle}>{activeConv?.title || 'Dtrexas AI'}</div>
           <button style={styles.iconBtn} onClick={() => useChatStore.getState().toggleSettings()} title="Settings"><Menu size={20} /></button>
         </div>

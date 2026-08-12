@@ -38,7 +38,7 @@ export default function LoginPage() {
   return (
     <div style={s.wrapper}>
       <div style={s.card}>
-        <img src="/logo.png" alt="Dtrexas AI" style={s.logoImg} />
+        <img src="/favicon.png" alt="Dtrexas AI" style={s.logoImg} />
         <h1 style={s.title}>Dtrexas AI</h1>
         <p style={s.subtitle}>{mode === 'login' ? 'Welcome back' : 'Create your account'}</p>
 
