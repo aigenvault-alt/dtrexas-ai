@@ -42,7 +42,6 @@ export default function App() {
   const handleLogout = () => {
     localStorage.removeItem('token');
     setUser(null);
-    useChatStore.getState().resetChats?.();
   };
 
   if (authLoading) {
@@ -82,8 +81,6 @@ function ChatInterface({ user, onLogout }) {
           onDelete={(id) => useChatStore.getState().deleteChat(id)}
           onRename={(id, t) => useChatStore.getState().renameChat(id, t)}
           onClose={toggleSidebar}
-          user={user}
-          onLogout={onLogout}
         />
       </div>
       <div style={styles.main}>
