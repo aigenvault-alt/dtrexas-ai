@@ -2,18 +2,16 @@ import { Router } from 'express';
 
 const router = Router();
 
-const GEMINI_API_BASE = 'https://generativelanguage.googleapis.com/v1beta';
-
-// Image generation - uses gemini-2.0-flash-exp with responseModalities
+// Image generation - requires GEMINI_API_KEY env var
 router.post('/generate', async (req, res) => {
   const apiKey = process.env.GEMINI_API_KEY;
-  if (!apiKey) return res.status(500).json({ error: 'GEMINI_API_KEY not configured.' });
+  if (!apiKey) return res.status(500).json({ error: 'Image generation is not configured.' });
 
   const { prompt } = req.body;
   if (!prompt) return res.status(400).json({ error: 'Prompt is required.' });
 
   try {
-    const url = `${GEMINI_API_BASE}/models/gemini-2.0-flash-exp:generateContent?key=${apiKey}`;
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent?key=${apiKey}`;
     const body = {
       contents: [{ parts: [{ text: prompt }] }],
       generationConfig: { responseModalities: ['Text', 'Image'] }
@@ -28,7 +26,7 @@ router.post('/generate', async (req, res) => {
     if (!response.ok) {
       const err = await response.text();
       console.error('Gemini generate error:', err.substring(0, 300));
-      return res.status(502).json({ error: 'Gemini API error. Check if the API key has access to image generation.' });
+      return res.status(502).json({ error: 'Gemini API error.' });
     }
 
     const data = await response.json();
@@ -45,7 +43,7 @@ router.post('/generate', async (req, res) => {
     }
 
     if (images.length === 0) {
-      return res.status(502).json({ error: 'No image generated. The model may have returned text only.' });
+      return res.status(502).json({ error: 'No image generated.' });
     }
 
     res.json({ success: true, images, text: text || null, model: 'gemini-2.0-flash-exp' });
@@ -55,21 +53,18 @@ router.post('/generate', async (req, res) => {
   }
 });
 
-// Image analysis - uses gemini-1.5-flash for fast, cheap vision
+// Image analysis - uses gemini-1.5-flash
 router.post('/analyze', async (req, res) => {
   const apiKey = process.env.GEMINI_API_KEY;
-  if (!apiKey) return res.status(500).json({ error: 'GEMINI_API_KEY not configured.' });
+  if (!apiKey) return res.status(500).json({ error: 'Image analysis is not configured.' });
 
   const { images, prompt } = req.body;
   if (!images || images.length === 0) return res.status(400).json({ error: 'At least one image is required.' });
 
   try {
-    const url = `${GEMINI_API_BASE}/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
-
-    // Build parts: image(s) + optional text prompt
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
     const parts = [];
     for (const img of images) {
-      // Extract base64 data from data URL
       const match = img.match(/^data:(.+?);base64,(.+)$/);
       if (!match) continue;
       parts.push({ inlineData: { mimeType: match[1], data: match[2] } });

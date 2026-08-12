@@ -1,3 +1,4 @@
-// Auth placeholder - not enforced currently
-// Firebase account suspended, using open access mode.
-export default (await import('express')).Router();
+import { Router } from 'express';
+const router = Router();
+// Auth placeholder - Firebase suspended. Open access mode.
+export default router;
