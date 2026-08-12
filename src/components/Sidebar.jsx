@@ -1,8 +1,7 @@
 import React, { useState } from 'react';
-import { Plus, Trash2, MessageSquare, Check, Pencil, LogOut } from 'lucide-react';
-import { logoutUser } from '../firebase.js';
+import { Plus, Trash2, MessageSquare, Check, Pencil } from 'lucide-react';
 
-export default function Sidebar({ conversations, activeId, onSelect, onNew, onDelete, onRename, onClose, user }) {
+export default function Sidebar({ conversations, activeId, onSelect, onNew, onDelete, onRename, onClose }) {
   const [editingId, setEditingId] = useState(null);
   const [editValue, setEditValue] = useState('');
 
@@ -45,24 +44,7 @@ export default function Sidebar({ conversations, activeId, onSelect, onNew, onDe
           </div>
         ))}
       </div>
-      {/* User info and logout */}
       <div style={s.userFooter}>
-        {user && (
-          <div style={s.userInfo}>
-            {user.photoURL ? (
-              <img src={user.photoURL} alt="" style={s.userAvatar} />
-            ) : (
-              <div style={s.userAvatarPlaceholder}>{user.displayName?.[0] || user.email?.[0] || '?'}</div>
-            )}
-            <div style={s.userMeta}>
-              <span style={s.userName}>{user.displayName || user.email}</span>
-              <span style={s.userEmail}>{user.email}</span>
-            </div>
-            <button style={s.logoutBtn} onClick={logoutUser} title="Sign out">
-              <LogOut size={14} />
-            </button>
-          </div>
-        )}
         <span style={s.version}>Dtrexas AI v1.0</span>
       </div>
     </>
@@ -99,33 +81,6 @@ const s = {
   },
   userFooter: {
     borderTop: '1px solid var(--border)', padding: '10px 12px 14px',
-  },
-  userInfo: {
-    display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8,
-  },
-  userAvatar: {
-    width: 32, height: 32, borderRadius: '50%', objectFit: 'cover',
-  },
-  userAvatarPlaceholder: {
-    width: 32, height: 32, borderRadius: '50%', background: 'var(--accent)',
-    color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center',
-    fontSize: 14, fontWeight: 600,
-  },
-  userMeta: {
-    flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden',
-  },
-  userName: {
-    fontSize: 13, fontWeight: 600, color: 'var(--text-primary)',
-    whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
-  },
-  userEmail: {
-    fontSize: 11, color: 'var(--text-muted)', whiteSpace: 'nowrap',
-    overflow: 'hidden', textOverflow: 'ellipsis',
-  },
-  logoutBtn: {
-    padding: 6, borderRadius: 4, color: 'var(--text-muted)',
-    display: 'flex', alignItems: 'center', justifyContent: 'center',
-    border: 'none', background: 'none', cursor: 'pointer',
   },
   version: {
     fontSize: 11, color: 'var(--text-muted)',
