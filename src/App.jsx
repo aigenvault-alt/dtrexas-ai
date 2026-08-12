@@ -28,6 +28,7 @@ export default function App() {
       <div style={styles.main}>
         <div style={styles.topBar}>
           <button style={styles.iconBtn} onClick={toggleSidebar} title="Toggle sidebar">{sidebarOpen ? <PanelLeftClose size={20} /> : <PanelLeft size={20} />}</button>
+          <img src="/logo.png" alt="" style={styles.topLogo} />
           <div style={styles.topTitle}>{activeConv?.title || 'Dtrexas AI'}</div>
           <button style={styles.iconBtn} onClick={() => useChatStore.getState().toggleSettings()} title="Settings"><Menu size={20} /></button>
         </div>
@@ -44,6 +45,7 @@ const styles = {
   mobileOverlay: { display: 'none' },
   main: { flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0, height: '100%' },
   topBar: { display: 'flex', alignItems: 'center', gap: 8, padding: '10px 16px', borderBottom: '1px solid var(--border)', background: 'var(--bg-secondary)', minHeight: 52 },
+  topLogo: { width: 28, height: 28, borderRadius: '50%', objectFit: 'cover', flexShrink: 0 },
   topTitle: { flex: 1, fontWeight: 600, fontSize: 15, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' },
   iconBtn: { padding: 8, borderRadius: 'var(--radius-sm)', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'var(--transition)', background: 'none', border: 'none', cursor: 'pointer' },
 };
